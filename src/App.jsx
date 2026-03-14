@@ -595,7 +595,9 @@ export default function App() {
   const [advances,setAdvances] = useState({});
   const [maintenanceFee,setMaintenanceFee] = useState(DEFAULT_MAINTENANCE_FEE);
   const [lateFees,setLateFees] = useState({});
-  const [scanModal,setScanModal] = useState(null); // { id, label } // { "flatId-mk": { fee, days } }
+  const [scanModal,setScanModal] = useState(null);
+  const [sidebarOpen,setSidebarOpen] = useState(false);
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768; // { id, label } // { "flatId-mk": { fee, days } }
   const [tab,setTab] = useState("overview");
   const [readMonth,setReadMonth] = useState(()=>monthKey());
   const [draftR,setDraftR] = useState({});
@@ -878,19 +880,42 @@ export default function App() {
   const TD = ({children,style={}}) => <td style={{padding:"9px 11px",...style}}>{children}</td>;
 
   return (
-    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Sans','Segoe UI',sans-serif",display:"flex"}}>
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:"'IBM Plex Sans','Segoe UI',sans-serif",display:"flex",flexDirection:"column"}}>
 
+      {/* ── MOBILE TOP BAR ── */}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 16px",background:T.surface,borderBottom:`1px solid ${T.border}`,position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"none",border:"none",color:T.accent,fontSize:22,cursor:"pointer",padding:"2px 6px",lineHeight:1}}>☰</button>
+          <div>
+            <div style={{fontSize:9,color:T.accent,fontWeight:800,letterSpacing:"0.2em"}}>SOCIETY</div>
+            <div style={{fontSize:14,fontWeight:800,color:T.text,lineHeight:1.2}}>Water Meter Manager</div>
+          </div>
+        </div>
+        <div style={{fontSize:12,color:T.muted}}>27 flats</div>
+      </div>
 
-      {/* SIDEBAR */}
-      <aside style={{width:186,background:T.surface,borderRight:`1px solid ${T.border}`,padding:"22px 11px",display:"flex",flexDirection:"column",gap:3,position:"sticky",top:0,height:"100vh",flexShrink:0}}>
-        <div style={{padding:"0 8px 18px",marginBottom:8,borderBottom:`1px solid ${T.border}`}}>
-          <div style={{fontSize:9,color:T.accent,fontWeight:800,letterSpacing:"0.2em",marginBottom:3}}>SOCIETY</div>
-          <div style={{fontSize:15,fontWeight:800,lineHeight:1.35,color:T.text}}>Water Meter<br/>Manager</div>
-          <div style={{fontSize:10,color:T.muted,marginTop:5}}>27 flats · 3 common</div>
+      <div style={{display:"flex",flex:1,overflow:"hidden"}}>
+
+      {/* ── SIDEBAR ── */}
+      {sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:90}}/>}
+      <aside style={{
+        width:200, background:T.surface, borderRight:`1px solid ${T.border}`,
+        padding:"18px 11px", display:"flex", flexDirection:"column", gap:3,
+        position:"fixed", top:0, left:0, height:"100vh", zIndex:100,
+        transform:sidebarOpen?"translateX(0)":"translateX(-100%)",
+        transition:"transform 0.25s ease", overflowY:"auto"
+      }}>
+        <div style={{padding:"0 8px 16px",marginBottom:8,borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div>
+            <div style={{fontSize:9,color:T.accent,fontWeight:800,letterSpacing:"0.2em",marginBottom:3}}>SOCIETY</div>
+            <div style={{fontSize:15,fontWeight:800,lineHeight:1.35,color:T.text}}>Water Meter<br/>Manager</div>
+            <div style={{fontSize:10,color:T.muted,marginTop:5}}>27 flats · 3 common</div>
+          </div>
+          <button onClick={()=>setSidebarOpen(false)} style={{background:"none",border:"none",color:T.muted,fontSize:18,cursor:"pointer",padding:0,marginTop:2}}>✕</button>
         </div>
         {NAV.map(n=>(
-          <button key={n.id} onClick={()=>setTab(n.id)} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 10px",borderRadius:7,border:"none",cursor:"pointer",textAlign:"left",width:"100%",background:tab===n.id?T.accentDim:"transparent",color:tab===n.id?T.accent:T.muted,fontWeight:tab===n.id?700:500,fontSize:12,transition:"all .15s",fontFamily:"inherit"}}>
-            <span style={{fontSize:14,width:18,textAlign:"center"}}>{n.icon}</span>{n.label}
+          <button key={n.id} onClick={()=>{setTab(n.id);setSidebarOpen(false);}} style={{display:"flex",alignItems:"center",gap:9,padding:"10px 12px",borderRadius:7,border:"none",cursor:"pointer",textAlign:"left",width:"100%",background:tab===n.id?T.accentDim:"transparent",color:tab===n.id?T.accent:T.muted,fontWeight:tab===n.id?700:500,fontSize:13,transition:"all .15s",fontFamily:"inherit"}}>
+            <span style={{fontSize:16,width:20,textAlign:"center"}}>{n.icon}</span>{n.label}
           </button>
         ))}
         {overview?.lowAdv?.length>0&&(
@@ -901,15 +926,15 @@ export default function App() {
         )}
       </aside>
 
-      {/* MAIN */}
-      <main style={{flex:1,padding:"30px 32px",overflowY:"auto"}}>
+      {/* ── MAIN ── */}
+      <main style={{flex:1,padding:"20px 16px",overflowY:"auto",width:"100%",maxWidth:"100vw",boxSizing:"border-box"}}>
 
         {/* ── OVERVIEW ── */}
         {tab==="overview"&&overview&&(
           <div>
             <h1 style={{margin:"0 0 4px",fontSize:22,fontWeight:800}}>Overview</h1>
             <p style={{color:T.muted,margin:"0 0 22px",fontSize:12}}>Latest: {latestMK?fmtMK(latestMK):"—"}</p>
-            <div style={{display:"flex",gap:13,flexWrap:"wrap",marginBottom:22}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10,marginBottom:18}}>
               <Stat icon="💰" label="Total Collection" value={fmt(overview.totalRev)} sub="this month"/>
               <Stat icon="💧" label="Consumption" value={`${overview.totalCons} kL`} sub="all flats" accent={T.green}/>
               <Stat icon="✓" label="Payments" value={`${overview.paid}/${overview.fb.length}`} sub="flats paid" accent={T.yellow}/>
@@ -1025,7 +1050,7 @@ export default function App() {
                     <div style={{fontSize:10,color:T.muted,fontWeight:700,letterSpacing:"0.1em",marginBottom:10,paddingBottom:6,borderBottom:`1px solid ${T.border}`}}>
                       {floor.label.toUpperCase()} — {flats.length} FLATS
                     </div>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))",gap:9}}>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:9}}>
                       {flats.map(id=>{
                         const keys=Object.keys(readings[id]||{}).sort();
                         const prev=keys.length>=2?readings[id][keys[keys.length-2]]:keys.length===1?readings[id][keys[0]]:null;
@@ -1244,6 +1269,7 @@ export default function App() {
           </div>
         )}
       </main>
+      </div>
 
       {/* ── MODALS ── */}
       {modal?.type==="downloadPicker"&&(
