@@ -420,46 +420,68 @@ function AdvanceManager({flatId,advance,onSave}) {
 // ─── METER SCANNER ───────────────────────────────────────────────────────────
 function MeterScanner({ flatId, flatName, prevReading, onConfirm, onClose }) {
   const [preview, setPreview] = useState(null);
-  const [file, setFile] = useState(null);
   const [status, setStatus] = useState("idle"); // idle | scanning | done | error
   const [extracted, setExtracted] = useState(null);
   const [corrected, setCorrected] = useState("");
+  const [errMsg, setErrMsg] = useState("");
+  const [resizedB64, setResizedB64] = useState(null);
   const camRef = useRef();
 
-  function handleFile(f) {
-    setFile(f); setStatus("idle"); setExtracted(null); setCorrected("");
-    const r = new FileReader();
-    r.onload = e => setPreview(e.target.result);
-    r.readAsDataURL(f);
+  // Resize image to max 1024px and compress to JPEG — critical for mobile photos
+  function resizeAndLoad(file) {
+    setStatus("idle"); setExtracted(null); setCorrected(""); setErrMsg(""); setResizedB64(null);
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1024;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      setPreview(dataUrl);
+      setResizedB64(dataUrl.split(",")[1]);
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => { setErrMsg("Could not load image."); setStatus("error"); };
+    img.src = url;
   }
 
   async function scan() {
-    if (!file || !preview) return;
-    setStatus("scanning");
+    if (!resizedB64) return;
+    setStatus("scanning"); setErrMsg("");
     try {
-      const base64 = preview.split(",")[1];
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
-          max_tokens: 200,
+          max_tokens: 300,
           messages: [{
             role: "user",
             content: [
-              { type: "image", source: { type: "base64", media_type: file.type || "image/jpeg", data: base64 } },
-              { type: "text", text: `This is a photo of a water meter. Read the meter display and extract the current numeric reading. This may be an analog dial meter or digital display. Return ONLY a JSON object with no other text: {"reading": <number or null>, "confidence": "<high|medium|low>", "note": "<any observation>"}` }
+              { type: "image", source: { type: "base64", media_type: "image/jpeg", data: resizedB64 } },
+              { type: "text", text: `This is a photo of a water meter (likely analog dial type). Your job is to read the numeric meter reading shown on the dials or display. Look carefully at all the dial positions and read the full number from left to right. Ignore any red dials (decimal). Return ONLY valid JSON, no other text: {"reading": <integer or null>, "confidence": "<high|medium|low>", "note": "<brief observation about image quality or reading>"}` }
             ]
           }]
         })
       });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`API error ${res.status}: ${errText.slice(0,200)}`);
+      }
       const data = await res.json();
-      const text = (data.content || []).map(b => b.text || "").join("").replace(/```json|```/g, "").trim();
+      const text = (data.content || []).map(b => b.text || "").join("").replace(/```json|```/g,"").trim();
       const parsed = JSON.parse(text);
       setExtracted(parsed);
       setCorrected(parsed.reading !== null ? String(parsed.reading) : "");
       setStatus("done");
     } catch (e) {
+      setErrMsg(e.message || "Unknown error");
       setStatus("error");
     }
   }
@@ -499,12 +521,12 @@ function MeterScanner({ flatId, flatName, prevReading, onConfirm, onClose }) {
         <input
           ref={camRef} type="file" accept="image/*" capture="environment"
           style={{ display: "none" }}
-          onChange={e => e.target.files[0] && handleFile(e.target.files[0])}
+          onChange={e => e.target.files[0] && resizeAndLoad(e.target.files[0])}
         />
       </div>
 
       {/* Scan button */}
-      {file && status === "idle" && (
+      {resizedB64 && status === "idle" && (
         <button onClick={scan} style={{ width: "100%", background: "#38bdf8", color: "#fff", border: "none", borderRadius: 9, padding: "12px", fontSize: 15, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
           🔍 Read Meter
         </button>
@@ -551,7 +573,7 @@ function MeterScanner({ flatId, flatName, prevReading, onConfirm, onClose }) {
 
           <div style={{ display: "flex", gap: 10 }}>
             <button
-              onClick={() => camRef.current?.click()}
+              onClick={() => { setPreview(null); setResizedB64(null); setStatus('idle'); setExtracted(null); setCorrected(''); setTimeout(()=>camRef.current?.click(),50); }}
               style={{ flex: 1, background: "#132030", color: "#4d7a9a", border: `1px solid rgba(56,189,248,0.15)`, borderRadius: 8, padding: "10px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
               🔄 Retake
             </button>
@@ -568,8 +590,9 @@ function MeterScanner({ flatId, flatName, prevReading, onConfirm, onClose }) {
       {status === "error" && (
         <div style={{ padding: 14, background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 8, textAlign: "center" }}>
           <div style={{ color: "#f87171", fontWeight: 700, marginBottom: 8 }}>Could not read meter image</div>
-          <div style={{ fontSize: 12, color: "#4d7a9a", marginBottom: 12 }}>Try a clearer photo with good lighting, close to the dial.</div>
-          <button onClick={() => { setStatus("idle"); setPreview(null); setFile(null); }} style={{ background: "#132030", color: "#38bdf8", border: `1px solid rgba(56,189,248,0.3)`, borderRadius: 7, padding: "8px 16px", cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}>Try Again</button>
+          <div style={{ fontSize: 11, color: "#4d7a9a", marginBottom: 8 }}>Try a clearer photo with good lighting, close to the dial.</div>
+          {errMsg && <div style={{ fontSize: 10, color: "#f87171", marginBottom: 10, wordBreak: "break-all", background: "rgba(248,113,113,0.1)", padding: "6px 8px", borderRadius: 5 }}>{errMsg}</div>}
+          <button onClick={() => { setStatus("idle"); setPreview(null); setResizedB64(null); setErrMsg(""); }} style={{ background: "#132030", color: "#38bdf8", border: `1px solid rgba(56,189,248,0.3)`, borderRadius: 7, padding: "8px 16px", cursor: "pointer", fontFamily: "inherit", fontWeight: 700 }}>Try Again</button>
         </div>
       )}
     </div>
