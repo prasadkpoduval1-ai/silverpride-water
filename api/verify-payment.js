@@ -10,7 +10,7 @@ export default async function handler(req, res) {
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: "POST",
@@ -18,15 +18,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [
-            {
-              inline_data: {
-                mime_type: mediaType || "image/jpeg",
-                data: image
-              }
-            },
-            {
-              text: `This is a payment screenshot (UPI/GPay/PhonePe/NEFT/bank transfer). Extract the payment details and return ONLY valid JSON with no other text: {"amount": <number or null>, "date": "<string or null>", "txn_id": "<string or null>", "payment_type": "<UPI|NEFT|unknown>", "status": "<success|failed|unknown>"}`
-            }
+            { inline_data: { mime_type: mediaType || "image/jpeg", data: image } },
+            { text: `This is a payment screenshot (UPI/GPay/PhonePe/NEFT/bank transfer). Extract payment details and return ONLY valid JSON with no other text: {"amount": <number or null>, "date": "<string or null>", "txn_id": "<string or null>", "payment_type": "<UPI|NEFT|unknown>", "status": "<success|failed|unknown>"}` }
           ]
         }],
         generationConfig: { maxOutputTokens: 300, temperature: 0 }

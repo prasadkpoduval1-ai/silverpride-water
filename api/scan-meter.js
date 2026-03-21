@@ -10,7 +10,7 @@ export default async function handler(req, res) {
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
     const response = await fetch(url, {
       method: "POST",
@@ -18,15 +18,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         contents: [{
           parts: [
-            {
-              inline_data: {
-                mime_type: mediaType || "image/jpeg",
-                data: image
-              }
-            },
-            {
-              text: `This is a photo of a water meter (analog dial type). Read the numeric meter reading shown on the dials from left to right. Ignore any red dials (decimal places). Return ONLY valid JSON with no other text: {"reading": <integer or null>, "confidence": "<high|medium|low>", "note": "<brief observation about image quality or reading>"}`
-            }
+            { inline_data: { mime_type: mediaType || "image/jpeg", data: image } },
+            { text: `This is a photo of a water meter (analog dial type). Read the numeric meter reading shown on the dials from left to right. Ignore any red dials (decimal places). Return ONLY valid JSON with no other text: {"reading": <integer or null>, "confidence": "<high|medium|low>", "note": "<brief observation>"}` }
           ]
         }],
         generationConfig: { maxOutputTokens: 300, temperature: 0 }
