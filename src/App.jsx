@@ -247,19 +247,13 @@ function PaymentVerifier({flatId,bill,mk,onVerified,onClose}) {
     setStatus("scanning");
     try {
       const base64 = preview.split(",")[1];
-      const res = await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          model:"claude-sonnet-4-20250514", max_tokens:400,
-          messages:[{role:"user",content:[
-            {type:"image",source:{type:"base64",media_type:file.type||"image/jpeg",data:base64}},
-            {type:"text",text:`This is a payment screenshot (UPI/GPay/PhonePe/NEFT/bank). Extract and respond ONLY as JSON, no other text:\n{"amount":<number|null>,"date":"<string|null>","txn_id":"<string|null>","type":"<UPI|NEFT|unknown>","status":"<success|failed|unknown>"}`}
-          ]}]
-        })
+      const res = await fetch("/api/verify-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: base64, mediaType: file.type || "image/jpeg" })
       });
-      const data = await res.json();
-      const text = (data.content||[]).map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
-      const p = JSON.parse(text);
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const p = await res.json();
       setExtracted(p);
       if(p.status==="failed") setStatus("failed");
       else if(p.amount!==null && Math.abs(Math.round(p.amount)-Math.round(bill.total))<=5) setStatus("matched");
@@ -455,28 +449,17 @@ function MeterScanner({ flatId, flatName, prevReading, onConfirm, onClose }) {
     if (!resizedB64) return;
     setStatus("scanning"); setErrMsg("");
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      // Call via backend proxy to avoid CORS issues
+      const res = await fetch("/api/scan-meter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 300,
-          messages: [{
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: "image/jpeg", data: resizedB64 } },
-              { type: "text", text: `This is a photo of a water meter (likely analog dial type). Your job is to read the numeric meter reading shown on the dials or display. Look carefully at all the dial positions and read the full number from left to right. Ignore any red dials (decimal). Return ONLY valid JSON, no other text: {"reading": <integer or null>, "confidence": "<high|medium|low>", "note": "<brief observation about image quality or reading>"}` }
-            ]
-          }]
-        })
+        body: JSON.stringify({ image: resizedB64, mediaType: "image/jpeg" })
       });
       if (!res.ok) {
         const errText = await res.text();
         throw new Error(`API error ${res.status}: ${errText.slice(0,200)}`);
       }
-      const data = await res.json();
-      const text = (data.content || []).map(b => b.text || "").join("").replace(/```json|```/g,"").trim();
-      const parsed = JSON.parse(text);
+      const parsed = await res.json();
       setExtracted(parsed);
       setCorrected(parsed.reading !== null ? String(parsed.reading) : "");
       setStatus("done");
